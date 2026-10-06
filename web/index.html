@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f6f2">
+  <title>Adaptive LAN Transfer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17231f;
+      --muted: #718079;
+      --line: #dce4dd;
+      --paper: #f4f6f2;
+      --white: #fff;
+      --green: #176b4b;
+      --green-dark: #104b37;
+      --lime: #c8ef72;
+      --amber: #d98238;
+      --red: #ad493b;
+      font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--paper); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .topbar {
+      min-height: 70px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 clamp(20px, 5vw, 72px); background: var(--ink); color: #f5f8f5;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 650; }
+    .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; background: var(--lime); color: var(--ink); font-size: 11px; font-weight: 800; }
+    .brand small { display: block; margin-top: 2px; color: #aebbb4; font-size: 11px; font-weight: 450; }
+    .local-state { display: flex; align-items: center; gap: 9px; color: #d9e4dc; font-size: 12px; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 0 4px #c8ef7222; }
+    main { width: min(1160px, calc(100% - 40px)); margin: 0 auto; padding: 38px 0 64px; }
+    .heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 24px; }
+    .eyebrow { margin: 0 0 8px; color: var(--green); font-size: 11px; font-weight: 750; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(25px, 4vw, 36px); line-height: 1.1; font-weight: 650; }
+    .intro { max-width: 460px; margin: 9px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .heading-tag { flex: 0 0 auto; padding: 9px 11px; color: var(--green-dark); background: #e5f0e7; font-size: 11px; font-weight: 700; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(290px, .8fr); border: 1px solid var(--line); background: var(--white); }
+    .transfer-pane { padding: 25px; border-right: 1px solid var(--line); }
+    .pane-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    h2 { margin: 0; font-size: 15px; font-weight: 700; }
+    .quiet-button { border: 0; padding: 7px 0 7px 8px; color: var(--green); background: transparent; font-size: 12px; font-weight: 650; }
+    .dropzone { min-height: 194px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; border: 1px dashed #9eafa4; background: #f8faf7; text-align: center; transition: background .16s ease, border-color .16s ease; }
+    .dropzone.dragover { border-color: var(--green); background: #ecf5ed; }
+    .upload-symbol { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 12px; background: #e3efe5; color: var(--green); font-size: 23px; line-height: 1; }
+    .drop-title { margin: 0; font-size: 14px; font-weight: 650; }
+    .drop-subtitle { margin: 6px 0 15px; color: var(--muted); font-size: 12px; }
+    .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 39px; padding: 0 15px; border: 0; background: var(--green); color: white; font-size: 12px; font-weight: 700; transition: background .15s ease, transform .15s ease; }
+    .primary-button:hover { background: var(--green-dark); }
+    .primary-button:active { transform: translateY(1px); }
+    .primary-button:disabled { cursor: wait; opacity: .58; }
+    .file-input { display: none; }
+    .queue { display: grid; gap: 1px; margin-top: 14px; background: var(--line); }
+    .queue:empty { display: none; }
+    .queue-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; padding: 12px; background: #fff; }
+    .queue-name { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .queue-meta { color: var(--muted); font-size: 11px; }
+    .queue-status { color: var(--green); font-size: 11px; font-weight: 650; text-align: right; }
+    .progress-track { grid-column: 1 / -1; height: 3px; overflow: hidden; background: #e9eeea; }
+    .progress-fill { width: 0; height: 100%; background: var(--green); transition: width .2s ease; }
+    .queue-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    .secondary-button { min-height: 37px; padding: 0 13px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 12px; font-weight: 650; }
+    .secondary-button:hover { background: #f6f8f5; }
+    .network-pane { display: flex; flex-direction: column; padding: 25px; background: #fbfcfa; }
+    .network-value { display: flex; align-items: baseline; gap: 7px; margin: 27px 0 4px; }
+    .network-value strong { font-size: 43px; line-height: 1; font-weight: 600; letter-spacing: 0; }
+    .network-value span { color: var(--muted); font-size: 13px; }
+    .network-caption { margin: 0; color: var(--muted); font-size: 12px; }
+    .meter { height: 5px; margin: 18px 0 21px; background: #e5ebe5; }
+    .meter-fill { width: 0; height: 100%; background: var(--green); transition: width .4s ease; }
+    .network-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 12px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .fact-label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 10px; }
+    .fact-value { font-size: 12px; font-weight: 700; }
+    .link-button { margin-top: 17px; align-self: flex-start; padding: 0; border: 0; background: transparent; color: var(--green); font-size: 12px; font-weight: 700; }
+    .link-button:disabled { cursor: wait; opacity: .55; }
+    .notice { min-height: 35px; margin-top: auto; padding-top: 24px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .notice.error { color: var(--red); }
+    .notice.success { color: var(--green); }
+    .library { margin-top: 28px; }
+    .library-heading { display: flex; justify-content: space-between; align-items: center; padding: 0 2px 11px; }
+    .library-count { color: var(--muted); font-size: 11px; }
+    .file-table { width: 100%; border-collapse: collapse; background: var(--white); }
+    .file-table th { padding: 11px 15px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; }
+    .file-table td { padding: 12px 15px; border-bottom: 1px solid #e9eeea; font-size: 12px; }
+    .file-table tr:last-child td { border-bottom: 1px solid var(--line); }
+    .file-table .file-cell { font-weight: 650; overflow-wrap: anywhere; }
+    .file-table .size-cell, .file-table .date-cell { color: var(--muted); white-space: nowrap; }
+    .download-link { color: var(--green); font-size: 11px; font-weight: 700; text-decoration: none; }
+    .download-link:hover { text-decoration: underline; }
+    .empty-row td { height: 62px; color: var(--muted); text-align: center; }
+    .footer { margin-top: 15px; color: var(--muted); font-size: 10px; }
+    @media (max-width: 760px) {
+      .topbar { min-height: 62px; padding: 0 18px; }
+      main { width: min(100% - 28px, 560px); padding-top: 27px; }
+      .heading { align-items: flex-start; flex-direction: column; gap: 13px; }
+      .workspace { grid-template-columns: 1fr; }
+      .transfer-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+      .network-pane { min-height: 325px; }
+    }
+    @media (max-width: 480px) {
+      .transfer-pane, .network-pane { padding: 19px; }
+      .local-state { font-size: 0; }
+      .local-state .live-dot { flex: 0 0 8px; }
+      .file-table th, .file-table td { padding: 10px 8px; }
+      .date-cell, .file-table th:nth-child(3) { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">LAN</div><div>Adaptive Transfer<small>Private network file exchange</small></div></div>
+    <div class="local-state"><span class="live-dot"></span><span>Local server ready</span></div>
+  </header>
+  <main>
+    <section class="heading">
+      <div><p class="eyebrow">Computer Networks Project</p><h1>Move files across your LAN.</h1><p class="intro">Transfers adapt chunk size to current network conditions, so nearby devices can share files without a cloud service.</p></div>
+      <div class="heading-tag">ADAPTIVE CHUNK TRANSFER</div>
+    </section>
+
+    <section class="workspace" aria-label="File transfer workspace">
+      <div class="transfer-pane">
+        <div class="pane-heading"><h2>Send files</h2><button class="quiet-button" id="clearButton" type="button">Clear selection</button></div>
+        <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Choose or drop files to send">
+          <div class="upload-symbol" aria-hidden="true">+</div>
+          <p class="drop-title">Drop files here to transfer</p>
+          <p class="drop-subtitle">Files stay on this network. Nothing is sent to the cloud.</p>
+          <button class="primary-button" id="chooseButton" type="button">Choose files</button>
+          <input class="file-input" id="fileInput" type="file" multiple>
+        </div>
+        <div class="queue" id="queue" aria-live="polite"></div>
+        <div class="queue-actions"><button class="secondary-button" id="sendButton" type="button" disabled>Start transfer</button></div>
+      </div>
+      <aside class="network-pane" aria-label="Network conditions">
+        <div class="pane-heading"><h2>Network conditions</h2><span class="live-dot" aria-label="Connected"></span></div>
+        <div class="network-value"><strong id="speedValue">--</strong><span>Mbps</span></div>
+        <p class="network-caption" id="speedCaption">Checking local link speed...</p>
+        <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div></div>
+        <div class="network-facts">
+          <div><span class="fact-label">Current chunk</span><span class="fact-value" id="chunkValue">--</span></div>
+          <div><span class="fact-label">Transfer mode</span><span class="fact-value">Auto adaptive</span></div>
+          <div><span class="fact-label">Storage</span><span class="fact-value">This computer</span></div>
+          <div><span class="fact-label">Connection</span><span class="fact-value">Local network</span></div>
+        </div>
+        <button class="link-button" id="testButton" type="button">↻ &nbsp;Retest connection</button>
+        <p class="notice" id="notice" role="status">Measuring a short sample to choose an initial transfer size.</p>
+      </aside>
+    </section>
+
+    <section class="library">
+      <div class="library-heading"><h2>Available on this device</h2><span class="library-count" id="libraryCount">0 files</span></div>
+      <table class="file-table">
+        <thead><tr><th scope="col">File name</th><th scope="col">Size</th><th scope="col">Added</th><th scope="col"></th></tr></thead>
+        <tbody id="fileRows"><tr class="empty-row"><td colspan="4">No files transferred yet.</td></tr></tbody>
+      </table>
+      <p class="footer">Transfers are served by this computer. Keep the server running while other devices download files.</p>
+    </section>
+  </main>
+  <script>
+    const MIN_CHUNK = 256 * 1024;
+    const MAX_CHUNK = 8 * 1024 * 1024;
+    const TARGET_CHUNK_SECONDS = 0.8;
+    const state = { files: [], chunkBytes: MIN_CHUNK, busy: false };
+    const fileInput = document.querySelector("#fileInput");
+    const queue = document.querySelector("#queue");
+    const sendButton = document.querySelector("#sendButton");
+    const notice = document.querySelector("#notice");
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      const units = ["KB", "MB", "GB", "TB"];
+      let value = bytes / 1024;
+      let unit = 0;
+      while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+      return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[unit]}`;
+    }
+
+    function showNotice(message, kind = "") {
+      notice.textContent = message;
+      notice.className = `notice ${kind}`;
+    }
+
+    function setChunk(bytes) {
+      const rounded = Math.round(bytes / (64 * 1024)) * (64 * 1024);
+      state.chunkBytes = Math.max(MIN_CHUNK, Math.min(MAX_CHUNK, rounded));
+      document.querySelector("#chunkValue").textContent = formatBytes(state.chunkBytes);
+    }
+
+    function addFiles(fileList) {
+      const incoming = Array.from(fileList);
+      for (const file of incoming) {
+        if (!state.files.some(item => item.file.name === file.name && item.file.size === file.size && item.file.lastModified === file.lastModified)) {
+          state.files.push({ file, progress: 0, status: "Queued" });
+        }
+      }
+      renderQueue();
+    }
+
+    function renderQueue() {
+      queue.replaceChildren();
+      for (const item of state.files) {
+        const row = document.createElement("div");
+        row.className = "queue-item";
+        const name = document.createElement("span");
+        name.className = "queue-name";
+        name.textContent = item.file.name;
+        const status = document.createElement("span");
+        status.className = "queue-status";
+        status.textContent = item.status;
+        const meta = document.createElement("span");
+        meta.className = "queue-meta";
+        meta.textContent = formatBytes(item.file.size);
+        const track = document.createElement("div");
+        track.className = "progress-track";
+        const fill = document.createElement("div");
+        fill.className = "progress-fill";
+        fill.style.width = `${item.progress}%`;
+        track.append(fill);
+        row.append(name, status, meta, track);
+        queue.append(row);
+      }
+      sendButton.disabled = state.busy || state.files.length === 0 || state.files.every(item => item.status === "Complete");
+    }
+
+    async function testConnection() {
+      const button = document.querySelector("#testButton");
+      button.disabled = true;
+      document.querySelector("#speedCaption").textContent = "Measuring local link speed...";
+      document.querySelector("#speedValue").textContent = "...";
+      const sampleBytes = 768 * 1024;
+      const started = performance.now();
+      try {
+        const response = await fetch(`/api/probe?bytes=${sampleBytes}&t=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("The speed test did not complete.");
+        await response.arrayBuffer();
+        const seconds = Math.max((performance.now() - started) / 1000, 0.001);
+        const megabits = sampleBytes * 8 / seconds / 1_000_000;
+        document.querySelector("#speedValue").textContent = megabits >= 100 ? megabits.toFixed(0) : megabits.toFixed(1);
+        document.querySelector("#speedCaption").textContent = "Measured browser-to-server throughput";
+        document.querySelector("#meterFill").style.width = `${Math.min(100, Math.max(3, megabits / 100 * 100))}%`;
+        setChunk(megabits * 1_000_000 / 8 * TARGET_CHUNK_SECONDS);
+        showNotice("Initial chunk size set from the connection test.", "success");
+      } catch (error) {
+        document.querySelector("#speedCaption").textContent = "Connection test unavailable";
+        showNotice(error.message || "Could not measure the connection.", "error");
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function uploadOne(item) {
+      const uploadId = crypto.randomUUID().replaceAll("-", "");
+      item.status = "Sending";
+      renderQueue();
+      let offset = 0;
+      let part = 0;
+      do {
+        const chunkEnd = Math.min(offset + state.chunkBytes, item.file.size);
+        const chunk = item.file.slice(offset, chunkEnd);
+        const final = chunkEnd >= item.file.size;
+        const started = performance.now();
+        const query = new URLSearchParams({ id: uploadId, name: item.file.name, part: String(part), final: String(final) });
+        const response = await fetch(`/api/upload?${query}`, { method: "POST", body: chunk });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Upload failed.");
+        const seconds = Math.max((performance.now() - started) / 1000, 0.001);
+        const rate = chunk.size / seconds;
+        setChunk(rate * TARGET_CHUNK_SECONDS);
+        document.querySelector("#speedValue").textContent = (rate * 8 / 1_000_000).toFixed(1);
+        document.querySelector("#speedCaption").textContent = "Measured during active upload";
+        document.querySelector("#meterFill").style.width = `${Math.min(100, Math.max(3, rate * 8 / 1_000_000))}%`;
+        offset = chunkEnd;
+        part += 1;
+        item.progress = item.file.size ? Math.round(offset / item.file.size * 100) : 100;
+        item.status = final ? "Finishing" : `Sending ${item.progress}%`;
+        renderQueue();
+      } while (offset < item.file.size || part === 0);
+      item.status = "Complete";
+      item.progress = 100;
+      renderQueue();
+    }
+
+    async function sendFiles() {
+      if (state.busy) return;
+      state.busy = true;
+      sendButton.disabled = true;
+      document.querySelector("#chooseButton").disabled = true;
+      try {
+        for (const item of state.files) {
+          if (item.status === "Complete") continue;
+          await uploadOne(item);
+        }
+        showNotice("Transfer complete. Files are available to devices on this LAN.", "success");
+        await loadFiles();
+      } catch (error) {
+        showNotice(error.message || "Transfer failed. Check that the server is running and try again.", "error");
+        const active = state.files.find(item => item.status.startsWith("Sending") || item.status === "Finishing");
+        if (active) active.status = "Failed";
+      } finally {
+        state.busy = false;
+        document.querySelector("#chooseButton").disabled = false;
+        renderQueue();
+      }
+    }
+
+    async function loadFiles() {
+      const response = await fetch("/api/files", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load shared files.");
+      const files = await response.json();
+      const rows = document.querySelector("#fileRows");
+      rows.replaceChildren();
+      document.querySelector("#libraryCount").textContent = `${files.length} ${files.length === 1 ? "file" : "files"}`;
+      if (!files.length) {
+        const row = document.createElement("tr");
+        row.className = "empty-row";
+        const cell = document.createElement("td");
+        cell.colSpan = 4;
+        cell.textContent = "No files transferred yet.";
+        row.append(cell);
+        rows.append(row);
+        return;
+      }
+      for (const file of files) {
+        const row = document.createElement("tr");
+        const name = document.createElement("td");
+        name.className = "file-cell";
+        name.textContent = file.name;
+        const size = document.createElement("td");
+        size.className = "size-cell";
+        size.textContent = formatBytes(file.size);
+        const date = document.createElement("td");
+        date.className = "date-cell";
+        date.textContent = new Date(file.modified * 1000).toLocaleString();
+        const action = document.createElement("td");
+        const link = document.createElement("a");
+        link.className = "download-link";
+        link.href = `/api/files/${encodeURIComponent(file.name)}`;
+        link.textContent = "Download";
+        action.append(link);
+        row.append(name, size, date, action);
+        rows.append(row);
+      }
+    }
+
+    document.querySelector("#chooseButton").addEventListener("click", event => { event.stopPropagation(); fileInput.click(); });
+    document.querySelector("#dropzone").addEventListener("click", event => { if (event.target.id !== "chooseButton") fileInput.click(); });
+    document.querySelector("#dropzone").addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); fileInput.click(); }
+    });
+    fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInput.value = ""; });
+    document.querySelector("#sendButton").addEventListener("click", sendFiles);
+    document.querySelector("#clearButton").addEventListener("click", () => {
+      if (!state.busy) { state.files = []; renderQueue(); showNotice("Selection cleared."); }
+    });
+    document.querySelector("#testButton").addEventListener("click", testConnection);
+    const dropzone = document.querySelector("#dropzone");
+    for (const eventName of ["dragenter", "dragover"]) dropzone.addEventListener(eventName, event => { event.preventDefault(); dropzone.classList.add("dragover"); });
+    for (const eventName of ["dragleave", "drop"]) dropzone.addEventListener(eventName, event => { event.preventDefault(); dropzone.classList.remove("dragover"); });
+    dropzone.addEventListener("drop", event => addFiles(event.dataTransfer.files));
+
+    renderQueue();
+    loadFiles().catch(error => showNotice(error.message, "error"));
+    testConnection();
+  </script>
+</body>
+</html>
